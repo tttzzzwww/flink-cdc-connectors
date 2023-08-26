@@ -1,21 +1,6 @@
-/*
- * Copyright 2023 Ververica Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package com.ververica.cdc.connectors.base.relational;
 
+import com.ververica.cdc.connectors.base.relational.handler.SchemaChangeEventHandler;
 import com.ververica.cdc.connectors.base.source.meta.offset.Offset;
 import com.ververica.cdc.connectors.base.source.meta.split.SourceSplitBase;
 import com.ververica.cdc.connectors.base.source.meta.wartermark.WatermarkEvent;
@@ -47,7 +32,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -77,6 +61,7 @@ public class JdbcSourceEventDispatcher<P extends Partition> extends EventDispatc
     private final Schema schemaChangeKeySchema;
     private final Schema schemaChangeValueSchema;
     private final String topic;
+    private final SchemaChangeEventHandler schemaChangeEventHandler;
 
     public JdbcSourceEventDispatcher(
             CommonConnectorConfig connectorConfig,
@@ -86,7 +71,8 @@ public class JdbcSourceEventDispatcher<P extends Partition> extends EventDispatc
             DataCollectionFilters.DataCollectionFilter<TableId> filter,
             ChangeEventCreator changeEventCreator,
             EventMetadataProvider metadataProvider,
-            SchemaNameAdjuster schemaNameAdjuster) {
+            SchemaNameAdjuster schemaNameAdjuster,
+            SchemaChangeEventHandler schemaChangeEventHandler) {
         super(
                 connectorConfig,
                 topicSelector,
@@ -126,6 +112,7 @@ public class JdbcSourceEventDispatcher<P extends Partition> extends EventDispatc
                                 connectorConfig.getSourceInfoStructMaker().schema())
                         .field(HISTORY_RECORD_FIELD, Schema.OPTIONAL_STRING_SCHEMA)
                         .build();
+        this.schemaChangeEventHandler = schemaChangeEventHandler;
     }
 
     public ChangeEventQueue<DataChangeEvent> getQueue() {
@@ -188,20 +175,13 @@ public class JdbcSourceEventDispatcher<P extends Partition> extends EventDispatc
         }
 
         private Struct schemaChangeRecordValue(SchemaChangeEvent event) throws IOException {
-            Struct sourceInfo = event.getSource();
-            Map<String, Object> source = new HashMap<>();
-            String fileName = sourceInfo.getString(BINLOG_FILENAME_OFFSET_KEY);
-            Long pos = sourceInfo.getInt64(BINLOG_POSITION_OFFSET_KEY);
-            Long serverId = sourceInfo.getInt64(SERVER_ID_KEY);
-            source.put(SERVER_ID_KEY, serverId);
-            source.put(BINLOG_FILENAME_OFFSET_KEY, fileName);
-            source.put(BINLOG_POSITION_OFFSET_KEY, pos);
+            Map<String, Object> source = schemaChangeEventHandler.parseSource(event);
             HistoryRecord historyRecord =
                     new HistoryRecord(
                             source,
                             event.getOffset(),
                             event.getDatabase(),
-                            null,
+                            event.getSchema(),
                             event.getDdl(),
                             event.getTableChanges());
             String historyStr = DOCUMENT_WRITER.write(historyRecord.document());

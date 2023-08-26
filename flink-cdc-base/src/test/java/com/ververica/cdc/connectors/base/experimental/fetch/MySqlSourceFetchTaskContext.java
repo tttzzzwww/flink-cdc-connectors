@@ -1,19 +1,3 @@
-/*
- * Copyright 2023 Ververica Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package com.ververica.cdc.connectors.base.experimental.fetch;
 
 import org.apache.flink.table.types.logical.RowType;
@@ -23,6 +7,7 @@ import com.ververica.cdc.connectors.base.config.JdbcSourceConfig;
 import com.ververica.cdc.connectors.base.dialect.JdbcDataSourceDialect;
 import com.ververica.cdc.connectors.base.experimental.EmbeddedFlinkDatabaseHistory;
 import com.ververica.cdc.connectors.base.experimental.config.MySqlSourceConfig;
+import com.ververica.cdc.connectors.base.experimental.handler.MySqlSchemaChangeEventHandler;
 import com.ververica.cdc.connectors.base.experimental.offset.BinlogOffset;
 import com.ververica.cdc.connectors.base.experimental.utils.MySqlUtils;
 import com.ververica.cdc.connectors.base.relational.JdbcSourceEventDispatcher;
@@ -144,7 +129,8 @@ public class MySqlSourceFetchTaskContext extends JdbcSourceFetchTaskContext {
                         connectorConfig.getTableFilters().dataCollectionFilter(),
                         DataChangeEvent::new,
                         metadataProvider,
-                        schemaNameAdjuster);
+                        schemaNameAdjuster,
+                        new MySqlSchemaChangeEventHandler());
 
         final MySqlChangeEventSourceMetricsFactory changeEventSourceMetricsFactory =
                 new MySqlChangeEventSourceMetricsFactory(
